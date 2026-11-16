@@ -143,15 +143,39 @@ regime_title, regime_desc = classify_drvt_regime(lambda_exc)
 st.info(f"**DRVT Regime:** {regime_title} | **Mode:** {mode_key} (Avg Power: {res['p_avg_mw']:.2f} mW, Duty Cycle: {res['duty_cycle']*100:.4f}%)")
 
 st.subheader("Primary Engineering & Clinical Metrics")
-c1, c2, c3, c4 = st.columns(4)
+eff_retention = (res['FVI'] / eta_f * 100.0) if eta_f > 0 else 0.0
+
+c1, c2 = st.columns(2)
 with c1:
-    st.metric("Time-Avg PCI", f"{res['PCI']:.2e}", delta="Safe Regime" if res['PCI'] < 1e-6 else "High Congestion", delta_color="inverse")
+    st.metric(
+        "Time-Avg PCI", 
+        f"{res['PCI']:.2e}", 
+        delta="Safe Regime" if res['PCI'] < 1e-6 else "High Congestion", 
+        delta_color="inverse"
+    )
 with c2:
-    st.metric("Fluorescence Visibility (FVI)", f"{res['FVI']:.4f}", delta="Optimal" if res['FVI'] > 0.7 else ("Acceptable" if res['FVI'] > 0.3 else "Poor Contrast"))
+    st.metric(
+        "Fluorescence Visibility (FVI)", 
+        f"{res['FVI']:.4f}", 
+        delta=f"{eff_retention:.1f}% Dye Efficiency" if eff_retention > 95 else "Congestion Loss"
+    )
+
+c3, c4 = st.columns(2)
 with c3:
-    st.metric("Resonant Radius (r_res)", f"{res['r_res_exc']:.4f} nm", delta=f"{res['r_res_exc']/A_0:.2f}x Bohr Radius", delta_color="off")
+    st.metric(
+        "Resonant Radius (r_res)", 
+        f"{res['r_res_exc']:.4f} nm", 
+        delta=f"{res['r_res_exc']/A_0:.2f}x Bohr Radius", 
+        delta_color="off"
+    )
 with c4:
-    st.metric("Peak Instantaneous PCI", f"{res['PCI_peak']:.2e}", delta=f"Peak: {res['p_peak_mw']} mW", delta_color="off")
+    st.metric(
+        "Peak Instantaneous PCI", 
+        f"{res['PCI_peak']:.2e}", 
+        delta=f"Peak: {res['p_peak_mw']} mW", 
+        delta_color="off"
+    )
+
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Dynamic Simulation & Plots",
@@ -184,12 +208,25 @@ with tab2:
             st.error("**High Photobleaching Risk:** Severe photon congestion detected.")
     with col_rec2:
         st.markdown("#### Engineering & Clinical Recommendation")
-        if res['FVI'] > 0.7:
-            st.success("**Optimal Imaging Conditions:** Strong fluorescence visibility and high margin contrast.")
-        elif res['FVI'] > 0.3:
-            st.info("**Acceptable Imaging Conditions:** Usable contrast; pulsed DRVT operation can further reduce thermal load.")
+        efficiency_retention = (res['FVI'] / eta_f) if eta_f > 0 else 0.0
+        dye_clean_name = selected_dye.split(" (")[0]
+        
+        if efficiency_retention > 0.95 and res['PCI'] < 1e-6:
+            st.success(
+                f"**Optimal Fluorophore Utilization ({efficiency_retention*100:.1f}%):** "
+                f"Maximum theoretical contrast achieved for **{dye_clean_name}** without congestion loss."
+            )
+        elif efficiency_retention > 0.70:
+            st.info(
+                "**Acceptable Imaging Conditions:** Moderate signal retention; "
+                "pulsed DRVT optimization can further reduce thermal load."
+            )
         else:
-            st.error("**Poor Fluorescence Visibility:** Low signal or excessive congestion. Use AI Optimizer below.")
+            st.error(
+                "**Severe Signal Degradation:** High photon congestion is suppressing "
+                "fluorescence output. Run the AI Optimizer below."
+            )
+
 
     st.markdown("---")
     st.markdown("#### AI Multi-Objective DRVT Optimizer (Differential Evolution)")
