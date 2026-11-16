@@ -217,3 +217,123 @@ with tab2:
     with col_rec2:
         st.markdown("#### Engineering & Clinical Recommendation")
         if res['FVI'] > 0.7:
+            st.success("**Optimal Imaging Conditions:** Strong fluorescence visibility and high anatomical/tumor margin contrast.")
+        elif res['FVI'] > 0.3:
+            st.info("**Acceptable Imaging Conditions:** Usable contrast, though optimization of scan volume or quantum yield may improve clarity.")
+        else:
+            st.error("**Poor Fluorescence Visibility:** Low signal-to-noise ratio or excessive congestion. Use the Auto-Optimizer below.")
+
+    st.markdown("---")
+    st.markdown("#### DRVT Parameter Auto-Optimizer")
+    if st.button("Compute Optimal Laser Settings for Current Tissue & Fluorophore"):
+        safe_pci_target = 1e-8
+        optimal_power = p_exc_mw * (safe_pci_target / res['PCI']) if res['PCI'] > 0 else p_exc_mw
+        optimal_power = min(max(1.0, optimal_power), 500.0)
+        
+        st.success(
+            f"**Optimization Result:** To maintain photobleaching risk in the safe green zone (PCI < 1e-8) "
+            f"while maximizing signal strength, set excitation power to **{optimal_power:.2f} mW**. "
+            f"At **{lambda_exc} nm**, the system operates with an effective resonant area of **{res['A_exc']:.4f} nm²** "
+            f"and a resonant state radius of **{res['r_res_exc']:.4f} nm**."
+        )
+
+# --- Tab 3: Detailed Parameter Table ---
+with tab3:
+    df_details = pd.DataFrame({
+        "Physical Parameter": [
+            "Excitation Effective Area (A_eff Exc)",
+            "Excitation Photon Energy (E_exc)",
+            "Excitation Resonant Radius (r_res Exc)",
+            "Emission Effective Area (A_eff Em)",
+            "Emission Photon Energy (E_em)",
+            "Group Velocity in Tissue (v_g)",
+            "Photon Flux (Φ)",
+            "Transient Photons (N_photons)",
+            "Tissue Resonant Capacity (N_res)",
+            "Photon Congestion Index (PCI)",
+            "Congestion Energy Density (CED)",
+            "Fluorescence Visibility Index (FVI)"
+        ],
+        "Computed Value": [
+            f"{res['A_exc']:.4f} nm²",
+            f"{res['E_exc']:.4f} eV",
+            f"{res['r_res_exc']:.5f} nm",
+            f"{res['A_em']:.4f} nm²",
+            f"{res['E_em']:.4f} eV",
+            f"{res['vg']:.3e} nm/s",
+            f"{res['N_exc']:.3e} photons/s",
+            f"{res['N_photons']:.3e} photons",
+            f"{res['N_res']:.3e} resonant states",
+            f"{res['PCI']:.3e}",
+            f"{res['CED']:.3e} eV/nm³",
+            f"{res['FVI']:.4f}"
+        ],
+        "DRVT Theoretical Basis": [
+            "A_eff = V_eq / λ",
+            "E = k · A_eff (k = 13/3)",
+            "r_res = √(286.398 / πλ)",
+            "A_eff = V_eq / λ",
+            "E = k · A_eff",
+            "v_g = c / n",
+            "Φ = P / E_J",
+            "N_ph = Φ · (λ / v_g)",
+            "N_res = V_scan / 286.398",
+            "PCI = N_ph / N_res",
+            "CED = PCI · E_exc",
+            "FVI = η_f · (1 - PCI)"
+        ]
+    })
+    st.dataframe(df_details, use_container_width=True, hide_index=True)
+
+# --- Tab 4: Scenario Comparison & Export ---
+with tab4:
+    st.markdown("#### Save & Compare Clinical Configurations")
+    dye_short_name = selected_dye.split(" (")[0]
+    tissue_short_name = selected_tissue.split(" (")[0]
+    default_name = f"{dye_short_name} - {p_exc_mw}mW"
+    
+    scenario_name = st.text_input("Scenario Label (e.g., Trial 1 - Glioma 30mW):", value=default_name)
+    
+    if st.button("Save Current Scenario"):
+        st.session_state.saved_scenarios.append({
+            "Scenario": scenario_name,
+            "Fluorophore": dye_short_name,
+            "Tissue": tissue_short_name,
+            "Power (mW)": p_exc_mw,
+            "r_res (nm)": round(res['r_res_exc'], 5),
+            "PCI": f"{res['PCI']:.2e}",
+            "FVI": round(res['FVI'], 4),
+            "Safety Status": "Safe" if res['PCI'] < 1e-8 else "Warning"
+        })
+        st.success("Scenario saved to comparison table!")
+
+    if st.session_state.saved_scenarios:
+        df_comp = pd.DataFrame(st.session_state.saved_scenarios)
+        st.dataframe(df_comp, use_container_width=True, hide_index=True)
+        
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            csv = df_comp.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Export Comparison Report (CSV)",
+                data=csv,
+                file_name="DRVT_Clinical_Simulation_Report.csv",
+                mime="text/csv"
+            )
+        with col_btn2:
+            if st.button("Clear Comparison Table"):
+                st.session_state.saved_scenarios = []
+                st.rerun()
+    else:
+        st.info("No scenarios saved yet. Click 'Save Current Scenario' above to benchmark different configurations.")
+
+# -------------------------------------------------
+# 9. Academic Citation & Attribution Footer
+# -------------------------------------------------
+st.markdown("""
+<div class="footer-card">
+    <strong>Theoretical Framework & Attribution:</strong><br>
+    Based on <em>Dynamic Resonant Volume Theory (DRVT)</em> by <strong>Dr. Khalid Abdel Fattah</strong><br>
+    Merowe Institute of Technology, Merowe University of Technology, Sudan | Contact: khdfattah@gmail.com
+</div>
+""", unsafe_allow_html=True)
