@@ -18,10 +18,7 @@ K = 13.0 / 3.0       # eV/nm^2
 st.title("🧠 DRVT Medical Imaging Design Engine")
 
 st.markdown("""
-### Medical Imaging Framework, **Standalone Engineering Suite** applying **Dynamic Resonant Volume"
-    " Theory (DRVT)** by **Dr. Khalid Abdel Fattah** to resolve classical"
-    " bottlenecks in Photonic Integrated Circuits (PICs) and MOEMS"
-    " micro-cavities.
+### Medical Imaging Framework, applying Dynamic Resonant Volume Theory (DRVT)by Dr. Khalid Abdel Fattah to resolve classical bottlenecks in Photonic Medical Imaging.
 
 Based on:
 
