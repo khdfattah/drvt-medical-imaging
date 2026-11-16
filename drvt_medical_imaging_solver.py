@@ -71,30 +71,26 @@ def classify_drvt_regime(wavelength_nm):
         return "Post-Atomic Resonance Domain", "Transition from photonic to collective mechanical/phonon resonance."
 
 def run_drvt_simulation(lambda_exc, lambda_em, p_exc_mw, eta_f, scan_volume, refractive_index, geometry_factor=1.0):
-    # Effective Resonant Area (supporting isotropic and anisotropic geometries)
     A_exc = (V_EQ / lambda_exc) * geometry_factor
     E_exc = K_CONST * A_exc
     
     A_em = (V_EQ / lambda_em) * geometry_factor
     E_em = K_CONST * A_em
     
-    # Resonant State Radius (r_res)
     r_res_exc = math.sqrt(V_EQ / (math.pi * lambda_exc))
     r_res_em = math.sqrt(V_EQ / (math.pi * lambda_em))
     
-    # Photon Flux and Transit Time
     E_exc_J = E_exc * 1.60218e-19
     N_exc = (p_exc_mw * 1e-3) / E_exc_J
     
-    vg = C_VACUUM / refractive_index  # Group velocity inside biological tissue
+    vg = C_VACUUM / refractive_index
     tau_exc = lambda_exc / vg
     N_photons = N_exc * tau_exc
     
-    # DRVT Engineering Metrics
     N_res = scan_volume / V_EQ
     PCI = N_photons / N_res
     CED = PCI * E_exc
-    FVI = eta_f * max(0.0, (1.0 - PCI))  # Guard against negative values under extreme congestion
+    FVI = eta_f * max(0.0, (1.0 - PCI))
     
     return {
         "A_exc": A_exc, "E_exc": E_exc, "r_res_exc": r_res_exc,
@@ -112,12 +108,10 @@ with st.sidebar:
     st.title("Simulation Controls")
     st.markdown("---")
     
-    # Fluorophore Preset Selection
     selected_dye = st.selectbox("Clinical Fluorophore Preset:", list(FLUOROPHORES.keys()), index=1)
     dye_data = FLUOROPHORES[selected_dye]
     st.caption(f"Clinical Application: **{dye_data['app']}**")
     
-    # Target Tissue Selection
     selected_tissue = st.selectbox("Target Biological Tissue:", list(TISSUES.keys()), index=0)
     tissue_data = TISSUES[selected_tissue]
     
@@ -130,8 +124,11 @@ with st.sidebar:
     with st.expander("Advanced Theoretical Parameters"):
         scan_volume = st.number_input("Interaction Scan Volume V_scan (nm³)", value=tissue_data["v_scan"], format="%.2e")
         refractive_index = st.number_input("Tissue Refractive Index (n)", value=tissue_data["n"], min_value=1.0, max_value=2.5, step=0.01)
-        geometry_factor = st.slider("Geometric Anisotropy Factor", 0.5, 2.0, 1.0, 0.05, 
-                                    help="1.0 represents ideal circular symmetry (Assumption B in DRVT).")
+        geometry_factor = st.slider(
+            "Geometric Anisotropy Factor", 
+            0.5, 2.0, 1.0, 0.05, 
+            help="1.0 represents ideal circular symmetry (Assumption B in DRVT)."
+        )
 
 # -------------------------------------------------
 # 6. Main Interface & Execution
@@ -139,11 +136,9 @@ with st.sidebar:
 st.markdown('<div class="main-header">🧠 DRVT Medical Imaging Design Engine</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Clinical & Engineering Platform applying Dynamic Resonant Volume Theory (Dr. Khalid Abdel Fattah) to optimize fluorescence contrast and prevent photobleaching.</div>', unsafe_allow_html=True)
 
-# Run Simulation
 res = run_drvt_simulation(lambda_exc, lambda_em, p_exc_mw, eta_f, scan_volume, refractive_index, geometry_factor)
 regime_title, regime_desc = classify_drvt_regime(lambda_exc)
 
-# DRVT Regime Banner
 st.info(f"**DRVT Resonance Classification:** {regime_title} — *{regime_desc}*")
 
 # -------------------------------------------------
@@ -153,14 +148,25 @@ st.subheader("📊 Primary Engineering & Clinical Metrics")
 c1, c2, c3, c4 = st.columns(4)
 
 with c1:
-    st.metric("Photon Congestion Index (PCI)", f"{res['PCI']:.2e}", 
-              delta="Safe Regime" if res['PCI'] < 1e-6 else "High Congestion", delta_color="inverse")
+    st.metric(
+        "Photon Congestion Index (PCI)", 
+        f"{res['PCI']:.2e}", 
+        delta="Safe Regime" if res['PCI'] < 1e-6 else "High Congestion", 
+        delta_color="inverse"
+    )
 with c2:
-    st.metric("Fluorescence Visibility Index (FVI)", f"{res['FVI']:.4f}", 
-              delta="Optimal" if res['FVI'] > 0.7 else ("Acceptable" if res['FVI'] > 0.3 else "Poor Contrast"))
+    st.metric(
+        "Fluorescence Visibility Index (FVI)", 
+        f"{res['FVI']:.4f}", 
+        delta="Optimal" if res['FVI'] > 0.7 else ("Acceptable" if res['FVI'] > 0.3 else "Poor Contrast")
+    )
 with c3:
-    st.metric("Resonant State Radius (r_res)", f"{res['r_res_exc']:.4f} nm", 
-              delta=f"{res['r_res_exc']/A_0:.2f}x Bohr Radius", delta_color="off")
+    st.metric(
+        "Resonant State Radius (r_res)", 
+        f"{res['r_res_exc']:.4f} nm", 
+        delta=f"{res['r_res_exc']/A_0:.2f}x Bohr Radius", 
+        delta_color="off"
+    )
 with c4:
     st.metric("Congestion Energy Density (CED)", f"{res['CED']:.2e} eV/nm³")
 
@@ -206,3 +212,8 @@ with tab2:
         if res['PCI'] < 1e-8:
             st.success("✅ **Low Photobleaching Risk:** Photon density is well within the safe resonant capacity, ensuring prolonged fluorophore stability.")
         elif res['PCI'] < 1e-6:
+            st.warning("⚠️ **Moderate Photobleaching Risk:** Monitor exposure duration to prevent signal decay during extended procedures.")
+        else:
+            st.error("🚨 **High Photobleaching Risk:** Severe photon congestion detected. Rapid fluorophore degradation and tissue heating may occur.")
+            
+    with col_rec2:
