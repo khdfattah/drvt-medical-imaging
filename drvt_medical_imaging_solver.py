@@ -228,11 +228,14 @@ with tab2:
 
             st.success(f"**AI Optimization Converged ({safety_priority}):**")
 
-            oc1, oc2, oc3, oc4 = st.columns(4)
+                        oc1, oc2 = st.columns(2)
             oc1.metric("Optimal Peak Power", f"{best_peak:.1f} mW")
             oc2.metric("Optimal Pulse Width", f"{best_width:.1f} ns")
+
+            oc3, oc4 = st.columns(2)
             oc3.metric("Optimal Rep. Rate", f"{best_rep:.1f} kHz")
             oc4.metric("Predicted FVI", f"{best_sim['FVI']:.4f}", delta=f"Avg PCI: {best_sim['PCI']:.2e}")
+
 
             st.info(
                 f"**AI Clinical Insight:** Operating your DRVT micro-chip at **{best_peak:.1f} mW** peak power "
