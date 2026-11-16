@@ -174,8 +174,6 @@ with tab1:
 
 with tab2:
     col_rec1, col_rec2 = st.columns(2)
-with tab2:
-    col_rec1, col_rec2 = st.columns(2)
     with col_rec1:
         st.markdown("#### Photobleaching Risk Assessment")
         if res['PCI'] < 1e-8:
@@ -204,7 +202,6 @@ with tab2:
     )
 
     if st.button("Run AI Multi-Objective Optimization"):
-        if st.button("Run AI Multi-Objective Optimization"):
         with st.spinner("AI Agent exploring optimal laser parameter space..."):
             target_pci = 1e-9 if "Ultra-Safe" in safety_priority else (1e-8 if "Balanced" in safety_priority else 5e-8)
 
@@ -242,6 +239,7 @@ with tab2:
                 f"with **{best_width:.1f} ns** pulses at **{best_rep:.1f} kHz** delivers an average tissue power of "
                 f"only **{best_sim['p_avg_mw']:.3f} mW** (Duty Cycle: {best_sim['duty_cycle']*100:.4f}%), completely eliminating photobleaching risk."
             )
+
 
 
 with tab3:
