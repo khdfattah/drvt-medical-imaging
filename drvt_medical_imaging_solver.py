@@ -57,28 +57,48 @@ def classify_drvt_regime(wavelength_nm):
     else:
         return "Post-Atomic Resonance Domain", "Transition from photonic to collective mechanical/phonon resonance."
 
-def run_drvt_simulation(lambda_exc, lambda_em, p_exc_mw, eta_f, scan_volume, refractive_index, geometry_factor=1.0):
+def run_drvt_simulation(lambda_exc, lambda_em, p_exc_mw, eta_f, scan_volume, refractive_index, geometry_factor=1.0, mode="CW", pulse_width_ns=10.0, rep_rate_khz=10.0):
     A_exc = (V_EQ / lambda_exc) * geometry_factor
     E_exc = K_CONST * A_exc
     A_em = (V_EQ / lambda_em) * geometry_factor
     E_em = K_CONST * A_em
     r_res_exc = math.sqrt(V_EQ / (math.pi * lambda_exc))
     r_res_em = math.sqrt(V_EQ / (math.pi * lambda_em))
+    
     E_exc_J = E_exc * 1.60218e-19
-    N_exc = (p_exc_mw * 1e-3) / E_exc_J
     vg = C_VACUUM / refractive_index
     tau_exc = lambda_exc / vg
-    N_photons = N_exc * tau_exc
     N_res = scan_volume / V_EQ
-    PCI = N_photons / N_res
-    CED = PCI * E_exc
-    FVI = eta_f * max(0.0, (1.0 - PCI))
+
+    if mode == "CW":
+        duty_cycle = 1.0
+        p_avg_mw = p_exc_mw
+        p_peak_mw = p_exc_mw
+    else:
+        # Duty Cycle = Pulse Width (s) * Repetition Rate (Hz)
+        duty_cycle = min(1.0, (pulse_width_ns * 1e-9) * (rep_rate_khz * 1e3))
+        p_peak_mw = p_exc_mw
+        p_avg_mw = p_peak_mw * duty_cycle
+
+    # Peak metrics (during active pulse)
+    N_exc_peak = (p_peak_mw * 1e-3) / E_exc_J
+    N_photons_peak = N_exc_peak * tau_exc
+    PCI_peak = N_photons_peak / N_res
+    
+    # Time-averaged metrics (thermal & cumulative photobleaching load)
+    N_exc_avg = (p_avg_mw * 1e-3) / E_exc_J
+    N_photons_avg = N_exc_avg * tau_exc
+    PCI_avg = N_photons_avg / N_res
+    CED_avg = PCI_avg * E_exc
+    FVI = eta_f * max(0.0, (1.0 - PCI_avg))
+
     return {
         "A_exc": A_exc, "E_exc": E_exc, "r_res_exc": r_res_exc,
         "A_em": A_em, "E_em": E_em, "r_res_em": r_res_em,
-        "N_exc": N_exc, "vg": vg, "tau_exc": tau_exc,
-        "N_photons": N_photons, "N_res": N_res,
-        "PCI": PCI, "CED": CED, "FVI": FVI
+        "N_exc": N_exc_avg, "vg": vg, "tau_exc": tau_exc,
+        "N_photons": N_photons_avg, "N_res": N_res,
+        "PCI": PCI_avg, "PCI_peak": PCI_peak, "CED": CED_avg, "FVI": FVI,
+        "duty_cycle": duty_cycle, "p_avg_mw": p_avg_mw, "p_peak_mw": p_peak_mw
     }
 
 with st.sidebar:
@@ -89,11 +109,25 @@ with st.sidebar:
     st.caption("Clinical Application: **" + dye_data['app'] + "**")
     selected_tissue = st.selectbox("Target Biological Tissue:", list(TISSUES.keys()), index=0)
     tissue_data = TISSUES[selected_tissue]
-    st.markdown("### Optical & Laser Parameters")
+    
+    st.markdown("### Laser Operation Mode")
+    laser_mode = st.radio("Select Source Regime:", ["CW (Continuous Wave)", "Pulsed (DRVT Micro-Chip)"], index=0)
+    mode_key = "CW" if "CW" in laser_mode else "Pulsed"
+    
+    if mode_key == "CW":
+        p_exc_mw = st.slider("Continuous Laser Power (mW)", min_value=1.0, max_value=500.0, value=30.0, step=1.0)
+        pulse_width_ns = 10.0
+        rep_rate_khz = 10.0
+    else:
+        p_exc_mw = st.slider("Pulsed Peak Power (mW)", min_value=10.0, max_value=50000.0, value=1000.0, step=10.0, help="DRVT Micro-chip supports high-gain pulsed peaks.")
+        pulse_width_ns = st.slider("Pulse Width (ns)", min_value=1.0, max_value=500.0, value=10.0, step=1.0)
+        rep_rate_khz = st.slider("Repetition Rate (kHz)", min_value=1.0, max_value=1000.0, value=50.0, step=5.0)
+        
+    st.markdown("### Optical Parameters")
     lambda_exc = st.number_input("Excitation Wavelength λ_exc (nm)", value=dye_data["exc"], min_value=10.0, max_value=50000.0, step=5.0)
     lambda_em = st.number_input("Emission Wavelength λ_em (nm)", value=dye_data["em"], min_value=10.0, max_value=50000.0, step=5.0)
-    p_exc_mw = st.slider("Excitation Laser Power (mW)", min_value=1.0, max_value=500.0, value=30.0, step=1.0)
     eta_f = st.slider("Fluorescence Quantum Yield η_f", min_value=0.01, max_value=1.00, value=dye_data["eta"], step=0.01)
+    
     with st.expander("Advanced Theoretical Parameters"):
         scan_volume = st.number_input("Interaction Scan Volume V_scan (nm³)", value=tissue_data["v_scan"], format="%.2e")
         refractive_index = st.number_input("Tissue Refractive Index (n)", value=tissue_data["n"], min_value=1.0, max_value=2.5, step=0.01)
@@ -102,20 +136,20 @@ with st.sidebar:
 st.markdown('<div class="main-header">DRVT Medical Imaging Design Engine</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Clinical & Engineering Platform applying Dynamic Resonant Volume Theory (DRVT) by Dr. Khalid Abdel Fattah to optimize fluorescence contrast and prevent photobleaching.</div>', unsafe_allow_html=True)
 
-res = run_drvt_simulation(lambda_exc, lambda_em, p_exc_mw, eta_f, scan_volume, refractive_index, geometry_factor)
+res = run_drvt_simulation(lambda_exc, lambda_em, p_exc_mw, eta_f, scan_volume, refractive_index, geometry_factor, mode_key, pulse_width_ns, rep_rate_khz)
 regime_title, regime_desc = classify_drvt_regime(lambda_exc)
-st.info("**DRVT Resonance Classification:** " + regime_title + " — *" + regime_desc + "*")
+st.info(f"**DRVT Regime:** {regime_title} | **Mode:** {mode_key} (Avg Power: {res['p_avg_mw']:.2f} mW, Duty Cycle: {res['duty_cycle']*100:.4f}%)")
 
 st.subheader("Primary Engineering & Clinical Metrics")
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.metric("Photon Congestion Index (PCI)", f"{res['PCI']:.2e}", delta="Safe Regime" if res['PCI'] < 1e-6 else "High Congestion", delta_color="inverse")
+    st.metric("Time-Avg PCI", f"{res['PCI']:.2e}", delta="Safe Regime" if res['PCI'] < 1e-6 else "High Congestion", delta_color="inverse")
 with c2:
-    st.metric("Fluorescence Visibility Index (FVI)", f"{res['FVI']:.4f}", delta="Optimal" if res['FVI'] > 0.7 else ("Acceptable" if res['FVI'] > 0.3 else "Poor Contrast"))
+    st.metric("Fluorescence Visibility (FVI)", f"{res['FVI']:.4f}", delta="Optimal" if res['FVI'] > 0.7 else ("Acceptable" if res['FVI'] > 0.3 else "Poor Contrast"))
 with c3:
-    st.metric("Resonant State Radius (r_res)", f"{res['r_res_exc']:.4f} nm", delta=f"{res['r_res_exc']/A_0:.2f}x Bohr Radius", delta_color="off")
+    st.metric("Resonant Radius (r_res)", f"{res['r_res_exc']:.4f} nm", delta=f"{res['r_res_exc']/A_0:.2f}x Bohr Radius", delta_color="off")
 with c4:
-    st.metric("Congestion Energy Density (CED)", f"{res['CED']:.2e} eV/nm³")
+    st.metric("Peak Instantaneous PCI", f"{res['PCI_peak']:.2e}", delta=f"Peak: {res['p_peak_mw']} mW", delta_color="off")
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Dynamic Simulation & Plots",
@@ -126,13 +160,14 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 with tab1:
-    st.markdown("#### Impact of Laser Excitation Power on Photon Congestion (PCI)")
-    powers = np.linspace(1, 500, 100)
-    pci_list = [run_drvt_simulation(lambda_exc, lambda_em, p, eta_f, scan_volume, refractive_index, geometry_factor)["PCI"] for p in powers]
+    st.markdown("#### Impact of Laser Power on Time-Averaged Photon Congestion (PCI)")
+    max_p = 500.0 if mode_key == "CW" else 50000.0
+    powers = np.linspace(1, max_p, 100)
+    pci_list = [run_drvt_simulation(lambda_exc, lambda_em, p, eta_f, scan_volume, refractive_index, geometry_factor, mode_key, pulse_width_ns, rep_rate_khz)["PCI"] for p in powers]
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=powers, y=pci_list, name="Photon Congestion Index (PCI)", line=dict(color="#EF4444", width=3)))
-    fig.add_vline(x=p_exc_mw, line_dash="dash", line_color="#1E3A8A", annotation_text="Current Laser Power")
-    fig.update_layout(title="PCI vs. Laser Power (mW)", xaxis_title="Excitation Laser Power (mW)", yaxis_title="Photon Congestion Index (PCI)", template="plotly_white", height=400)
+    fig.add_trace(go.Scatter(x=powers, y=pci_list, name="Time-Avg PCI", line=dict(color="#EF4444", width=3)))
+    fig.add_vline(x=p_exc_mw, line_dash="dash", line_color="#1E3A8A", annotation_text="Current Setting")
+    fig.update_layout(title=f"PCI vs. {mode_key} Power (mW)", xaxis_title=f"{mode_key} Power (mW)", yaxis_title="Time-Averaged PCI", template="plotly_white", height=400)
     st.plotly_chart(fig, use_container_width=True)
 
 with tab2:
@@ -140,7 +175,7 @@ with tab2:
     with col_rec1:
         st.markdown("#### Photobleaching Risk Assessment")
         if res['PCI'] < 1e-8:
-            st.success("**Low Photobleaching Risk:** Photon density is well within the safe resonant capacity.")
+            st.success("**Low Photobleaching Risk:** Time-averaged photon density is well within safe resonant capacity.")
         elif res['PCI'] < 1e-6:
             st.warning("**Moderate Photobleaching Risk:** Monitor exposure duration during extended procedures.")
         else:
@@ -150,38 +185,39 @@ with tab2:
         if res['FVI'] > 0.7:
             st.success("**Optimal Imaging Conditions:** Strong fluorescence visibility and high margin contrast.")
         elif res['FVI'] > 0.3:
-            st.info("**Acceptable Imaging Conditions:** Usable contrast; optimization may improve clarity.")
+            st.info("**Acceptable Imaging Conditions:** Usable contrast; pulsed DRVT operation can further reduce thermal load.")
         else:
             st.error("**Poor Fluorescence Visibility:** Low signal or excessive congestion. Use Auto-Optimizer.")
     st.markdown("---")
-    st.markdown("#### DRVT Parameter Auto-Optimizer")
-    if st.button("Compute Optimal Laser Settings for Current Tissue & Fluorophore"):
-        safe_pci_target = 1e-8
-        optimal_power = min(max(1.0, p_exc_mw * (safe_pci_target / res['PCI']) if res['PCI'] > 0 else p_exc_mw), 500.0)
-        st.success(f"**Optimization Result:** Set excitation power to **{optimal_power:.2f} mW** to maintain PCI < 1e-8. At **{lambda_exc} nm**, A_eff = **{res['A_exc']:.4f} nm²** and r_res = **{res['r_res_exc']:.4f} nm**.")
 
 with tab3:
     df_details = pd.DataFrame({
         "Physical Parameter": [
+            "Operation Mode & Duty Cycle", "Average Delivered Power",
             "Excitation Effective Area (A_eff Exc)", "Excitation Photon Energy (E_exc)",
             "Excitation Resonant Radius (r_res Exc)", "Emission Effective Area (A_eff Em)",
-            "Emission Photon Energy (E_em)", "Group Velocity in Tissue (v_g)",
-            "Photon Flux (Φ)", "Transient Photons (N_photons)",
-            "Tissue Resonant Capacity (N_res)", "Photon Congestion Index (PCI)",
-            "Congestion Energy Density (CED)", "Fluorescence Visibility Index (FVI)"
+            "Group Velocity in Tissue (v_g)", "Time-Avg Photon Flux (Φ)",
+            "Tissue Resonant Capacity (N_res)", "Peak Instantaneous PCI",
+            "Time-Averaged PCI", "Congestion Energy Density (CED)",
+            "Fluorescence Visibility Index (FVI)"
         ],
         "Computed Value": [
-            f"{res['A_exc']:.4f} nm²", f"{res['E_exc']:.4f} eV", f"{res['r_res_exc']:.5f} nm",
-            f"{res['A_em']:.4f} nm²", f"{res['E_em']:.4f} eV", f"{res['vg']:.3e} nm/s",
-            f"{res['N_exc']:.3e} photons/s", f"{res['N_photons']:.3e} photons",
-            f"{res['N_res']:.3e} resonant states", f"{res['PCI']:.3e}",
-            f"{res['CED']:.3e} eV/nm³", f"{res['FVI']:.4f}"
+            f"{mode_key} ({res['duty_cycle']*100:.4f}%)", f"{res['p_avg_mw']:.3f} mW",
+            f"{res['A_exc']:.4f} nm²", f"{res['E_exc']:.4f} eV",
+            f"{res['r_res_exc']:.5f} nm", f"{res['A_em']:.4f} nm²",
+            f"{res['vg']:.3e} nm/s", f"{res['N_exc']:.3e} photons/s",
+            f"{res['N_res']:.3e} states", f"{res['PCI_peak']:.3e}",
+            f"{res['PCI']:.3e}", f"{res['CED']:.3e} eV/nm³",
+            f"{res['FVI']:.4f}"
         ],
         "DRVT Theoretical Basis": [
-            "A_eff = V_eq / λ", "E = k · A_eff (k = 13/3)", "r_res = √(286.398 / πλ)",
-            "A_eff = V_eq / λ", "E = k · A_eff", "v_g = c / n", "Φ = P / E_J",
-            "N_ph = Φ · (λ / v_g)", "N_res = V_scan / 286.398", "PCI = N_ph / N_res",
-            "CED = PCI · E_exc", "FVI = η_f · (1 - PCI)"
+            "Duty Cycle = τ_pulse · f_rep", "P_avg = P_peak · Duty Cycle",
+            "A_eff = V_eq / λ", "E = k · A_eff (k = 13/3)",
+            "r_res = √(286.398 / πλ)", "A_eff = V_eq / λ",
+            "v_g = c / n", "Φ_avg = P_avg / E_J",
+            "N_res = V_scan / 286.398", "PCI_peak = N_ph_peak / N_res",
+            "PCI_avg = PCI_peak · Duty Cycle", "CED = PCI_avg · E_exc",
+            "FVI = η_f · (1 - PCI_avg)"
         ]
     })
     st.dataframe(df_details, use_container_width=True, hide_index=True)
@@ -190,13 +226,13 @@ with tab4:
     st.markdown("#### Save & Compare Clinical Configurations")
     dye_short_name = selected_dye.split(" (")
     tissue_short_name = selected_tissue.split(" (")
-    default_name = f"{dye_short_name} - {p_exc_mw}mW"
+    default_name = f"{dye_short_name} ({mode_key}) - {p_exc_mw}mW"
     scenario_name = st.text_input("Scenario Label:", value=default_name)
     if st.button("Save Current Scenario"):
         st.session_state.saved_scenarios.append({
-            "Scenario": scenario_name, "Fluorophore": dye_short_name, "Tissue": tissue_short_name,
-            "Power (mW)": p_exc_mw, "r_res (nm)": round(res['r_res_exc'], 5),
-            "PCI": f"{res['PCI']:.2e}", "FVI": round(res['FVI'], 4),
+            "Scenario": scenario_name, "Mode": mode_key, "Fluorophore": dye_short_name,
+            "Peak Power (mW)": p_exc_mw, "Avg Power (mW)": round(res['p_avg_mw'], 3),
+            "Avg PCI": f"{res['PCI']:.2e}", "FVI": round(res['FVI'], 4),
             "Safety Status": "Safe" if res['PCI'] < 1e-8 else "Warning"
         })
         st.success("Scenario saved!")
@@ -206,7 +242,7 @@ with tab4:
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             csv = df_comp.to_csv(index=False).encode('utf-8')
-            st.download_button("Export Comparison Report (CSV)", data=csv, file_name="DRVT_Report.csv", mime="text/csv")
+            st.download_button("Export Comparison Report (CSV)", data=csv, file_name="DRVT_Pulsed_Report.csv", mime="text/csv")
         with col_btn2:
             if st.button("Clear Comparison Table"):
                 st.session_state.saved_scenarios = []
@@ -216,7 +252,7 @@ with tab4:
 
 with tab5:
     st.subheader("Conventional System vs. DRVT Chip Design")
-    st.markdown("Applying **Dynamic Resonant Volume Theory (DRVT)** enables miniaturized surgical and microscopic light sources:")
+    st.markdown("Applying **Dynamic Resonant Volume Theory (DRVT)** enables miniaturized, high-gain pulsed surgical and microscopic light sources:")
     df_hardware = pd.DataFrame({
         "Engineering Metric": [
             "Active Cavity Volume", "Operating Gas Pressure", "Small-Signal Gain (g₀)",
@@ -232,7 +268,7 @@ with tab5:
         ]
     })
     st.dataframe(df_hardware, use_container_width=True, hide_index=True)
-    st.info("**Medical Device Integration:** 1.00 mm³ DRVT micro-cavities allow direct integration into endoscopes and surgical handpieces.")
+    st.info("**Medical Device Integration:** 1.00 mm³ DRVT pulsed micro-cavities allow direct integration into endoscopes and surgical handpieces without thermal damage.")
 
 st.markdown("""
 <div class="footer-card">
