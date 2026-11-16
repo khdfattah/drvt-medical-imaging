@@ -18,7 +18,7 @@ st.markdown("""
 <style>
     .main-header {font-size: 2.2rem; font-weight: 700; color: #1E3A8A;}
     .sub-header {font-size: 1.1rem; color: #4B5563; margin-bottom: 1.5rem;}
-    .metric-card {background-color: #F8FAFC; padding: 15px; border-radius: 10px; border-left: 5px solid #2563EB;}
+    .footer-card {background-color: #F1F5F9; padding: 15px; border-radius: 8px; border-left: 4px solid #1E3A8A; margin-top: 2rem; font-size: 0.9rem; color: #334155;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -51,7 +51,6 @@ TISSUES = {
     "Blood / Vascular (n = 1.36)": {"n": 1.36, "v_scan": 1.5e14}
 }
 
-# Initialize Session State for Multi-Scenario Comparison
 if 'saved_scenarios' not in st.session_state:
     st.session_state.saved_scenarios = []
 
@@ -101,21 +100,20 @@ def run_drvt_simulation(lambda_exc, lambda_em, p_exc_mw, eta_f, scan_volume, ref
     }
 
 # -------------------------------------------------
-# 5. Sidebar Controls (Clinical & Physical Presets)
+# 5. Sidebar Controls
 # -------------------------------------------------
 with st.sidebar:
-    st.image("https://flaticon.com", width=60)
     st.title("Simulation Controls")
     st.markdown("---")
     
     selected_dye = st.selectbox("Clinical Fluorophore Preset:", list(FLUOROPHORES.keys()), index=1)
     dye_data = FLUOROPHORES[selected_dye]
-    st.caption(f"Clinical Application: **{dye_data['app']}**")
+    st.caption("Clinical Application: **" + dye_data['app'] + "**")
     
     selected_tissue = st.selectbox("Target Biological Tissue:", list(TISSUES.keys()), index=0)
     tissue_data = TISSUES[selected_tissue]
     
-    st.markdown("### 🎛️ Optical & Laser Parameters")
+    st.markdown("### Optical & Laser Parameters")
     lambda_exc = st.number_input("Excitation Wavelength λ_exc (nm)", value=dye_data["exc"], min_value=10.0, max_value=50000.0, step=5.0)
     lambda_em = st.number_input("Emission Wavelength λ_em (nm)", value=dye_data["em"], min_value=10.0, max_value=50000.0, step=5.0)
     p_exc_mw = st.slider("Excitation Laser Power (mW)", min_value=1.0, max_value=500.0, value=30.0, step=1.0)
@@ -133,18 +131,18 @@ with st.sidebar:
 # -------------------------------------------------
 # 6. Main Interface & Execution
 # -------------------------------------------------
-st.markdown('<div class="main-header">🧠 DRVT Medical Imaging Design Engine</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Clinical & Engineering Platform applying Dynamic Resonant Volume Theory (Dr. Khalid Abdel Fattah) to optimize fluorescence contrast and prevent photobleaching.</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">DRVT Medical Imaging Design Engine</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">Clinical & Engineering Platform applying Dynamic Resonant Volume Theory (DRVT) by Dr. Khalid Abdel Fattah to optimize fluorescence contrast and prevent photobleaching.</div>', unsafe_allow_html=True)
 
 res = run_drvt_simulation(lambda_exc, lambda_em, p_exc_mw, eta_f, scan_volume, refractive_index, geometry_factor)
 regime_title, regime_desc = classify_drvt_regime(lambda_exc)
 
-st.info(f"**DRVT Resonance Classification:** {regime_title} — *{regime_desc}*")
+st.info("**DRVT Resonance Classification:** " + regime_title + " — *" + regime_desc + "*")
 
 # -------------------------------------------------
 # 7. Key Performance Indicators (KPIs)
 # -------------------------------------------------
-st.subheader("📊 Primary Engineering & Clinical Metrics")
+st.subheader("Primary Engineering & Clinical Metrics")
 c1, c2, c3, c4 = st.columns(4)
 
 with c1:
@@ -174,10 +172,10 @@ with c4:
 # 8. Interactive Analysis Tabs
 # -------------------------------------------------
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📈 Dynamic Simulation & Plots", 
-    "🎯 Auto-Optimizer & Clinical Guidance", 
-    "📋 Complete Physical Parameters", 
-    "⚖️ Scenario Comparison & Export"
+    "Dynamic Simulation & Plots", 
+    "Auto-Optimizer & Clinical Guidance", 
+    "Complete Physical Parameters", 
+    "Scenario Comparison & Export"
 ])
 
 # --- Tab 1: Interactive Visualization ---
@@ -208,12 +206,14 @@ with tab2:
     col_rec1, col_rec2 = st.columns(2)
     
     with col_rec1:
-        st.markdown("#### 🛡️ Photobleaching Risk Assessment")
+        st.markdown("#### Photobleaching Risk Assessment")
         if res['PCI'] < 1e-8:
-            st.success("✅ **Low Photobleaching Risk:** Photon density is well within the safe resonant capacity, ensuring prolonged fluorophore stability.")
+            st.success("**Low Photobleaching Risk:** Photon density is well within the safe resonant capacity, ensuring prolonged fluorophore stability.")
         elif res['PCI'] < 1e-6:
-            st.warning("⚠️ **Moderate Photobleaching Risk:** Monitor exposure duration to prevent signal decay during extended procedures.")
+            st.warning("**Moderate Photobleaching Risk:** Monitor exposure duration to prevent signal decay during extended procedures.")
         else:
-            st.error("🚨 **High Photobleaching Risk:** Severe photon congestion detected. Rapid fluorophore degradation and tissue heating may occur.")
+            st.error("**High Photobleaching Risk:** Severe photon congestion detected. Rapid fluorophore degradation and tissue heating may occur.")
             
     with col_rec2:
+        st.markdown("#### Engineering & Clinical Recommendation")
+        if res['FVI'] > 0.7:
