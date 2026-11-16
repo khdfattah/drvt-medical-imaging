@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from scipy.optimize import differential_evolution
+
 
 st.set_page_config(
     page_title="DRVT Medical Imaging Suite",
