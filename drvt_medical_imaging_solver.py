@@ -174,62 +174,72 @@ with tab1:
 
 with tab2:
     col_rec1, col_rec2 = st.columns(2)
+with tab2:
+    col_rec1, col_rec2 = st.columns(2)
     with col_rec1:
         st.markdown("#### Photobleaching Risk Assessment")
-            st.markdown("#### AI Multi-Objective DRVT Optimizer (Differential Evolution)")
+        if res['PCI'] < 1e-8:
+            st.success("**Low Photobleaching Risk:** Time-averaged photon density is well within safe resonant capacity.")
+        elif res['PCI'] < 1e-6:
+            st.warning("**Moderate Photobleaching Risk:** Monitor exposure duration during extended procedures.")
+        else:
+            st.error("**High Photobleaching Risk:** Severe photon congestion detected.")
+    with col_rec2:
+        st.markdown("#### Engineering & Clinical Recommendation")
+        if res['FVI'] > 0.7:
+            st.success("**Optimal Imaging Conditions:** Strong fluorescence visibility and high margin contrast.")
+        elif res['FVI'] > 0.3:
+            st.info("**Acceptable Imaging Conditions:** Usable contrast; pulsed DRVT operation can further reduce thermal load.")
+        else:
+            st.error("**Poor Fluorescence Visibility:** Low signal or excessive congestion. Use AI Optimizer below.")
+
+    st.markdown("---")
+    st.markdown("#### AI Multi-Objective DRVT Optimizer (Differential Evolution)")
     st.caption("Uses evolutionary AI optimization to find the ideal combination of Peak Power, Pulse Width, and Repetition Rate.")
-    
-    col_opt1, col_opt2 = st.columns([2, 1])
-    with col_opt1:
-        safety_priority = st.select_slider(
-            "Select Clinical Optimization Strategy:",
-            options=["Ultra-Safe (Neuro/Delicate)", "Balanced (Standard Surgery)", "High-Contrast (Deep Tissue)"],
-            value="Balanced (Standard Surgery)"
-        )
-    
+
+    safety_priority = st.select_slider(
+        "Select Clinical Optimization Strategy:",
+        options=["Ultra-Safe (Neuro/Delicate)", "Balanced (Standard Surgery)", "High-Contrast (Deep Tissue)"],
+        value="Balanced (Standard Surgery)"
+    )
+
     if st.button("Run AI Multi-Objective Optimization"):
         with st.spinner("AI Agent exploring optimal laser parameter space..."):
-            # تحديد عتبة الأمان المستهدفة بناءً على استراتيجية الجراح
             target_pci = 1e-9 if "Ultra-Safe" in safety_priority else (1e-8 if "Balanced" in safety_priority else 5e-8)
-            
-            # دالة الهدف الفيزيائية (Physics-Informed Objective Function)
+
             def ai_objective(params):
                 p_peak, p_width, f_rep = params
                 sim = run_drvt_simulation(
                     lambda_exc, lambda_em, p_peak, eta_f, scan_volume,
                     refractive_index, geometry_factor, "Pulsed", p_width, f_rep
                 )
-                # عقوبة صارمة إذا تجاوز الازدحام عتبة الأمان
                 safety_penalty = 1e6 * max(0.0, (sim["PCI"] - target_pci) / target_pci)
-                # هدفنا تعظيم وضوح الصورة FVI وقوة الإشارة اللحظية مع احترام الأمان
                 signal_reward = sim["FVI"] * math.log10(max(1.1, sim["PCI_peak"] * 1e12))
                 return safety_penalty - signal_reward
 
-            # حدود البحث: [قدرة الذروة mW, عرض النبضة ns, معدل التكرار kHz]
             bounds = [(50.0, 15000.0), (1.0, 200.0), (1.0, 500.0)]
             opt_result = differential_evolution(ai_objective, bounds, seed=42, maxiter=150)
-            
+
             best_peak, best_width, best_rep = opt_result.x
             best_sim = run_drvt_simulation(
                 lambda_exc, lambda_em, best_peak, eta_f, scan_volume,
                 refractive_index, geometry_factor, "Pulsed", best_width, best_rep
             )
-            
+
             st.success(f"**AI Optimization Converged ({safety_priority}):**")
-            
-            # عرض النتائج في بطاقات منظمة
+
             oc1, oc2, oc3, oc4 = st.columns(4)
             oc1.metric("Optimal Peak Power", f"{best_peak:.1f} mW")
             oc2.metric("Optimal Pulse Width", f"{best_width:.1f} ns")
             oc3.metric("Optimal Rep. Rate", f"{best_rep:.1f} kHz")
             oc4.metric("Predicted FVI", f"{best_sim['FVI']:.4f}", delta=f"Avg PCI: {best_sim['PCI']:.2e}")
-            
+
             st.info(
                 f"**AI Clinical Insight:** Operating your DRVT micro-chip at **{best_peak:.1f} mW** peak power "
                 f"with **{best_width:.1f} ns** pulses at **{best_rep:.1f} kHz** delivers an average tissue power of "
                 f"only **{best_sim['p_avg_mw']:.3f} mW** (Duty Cycle: {best_sim['duty_cycle']*100:.4f}%), completely eliminating photobleaching risk."
             )
-    st.markdown("---")
+
 
 with tab3:
     df_details = pd.DataFrame({
