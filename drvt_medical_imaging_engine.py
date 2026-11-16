@@ -19,12 +19,9 @@ st.title("🧠 DRVT Medical Imaging Design Engine")
 
 st.markdown("""
 ### Medical Imaging Framework, applying Dynamic Resonant Volume Theory (DRVT)by Dr. Khalid Abdel Fattah to resolve classical bottlenecks in Photonic Medical Imaging.
-
 Based on:
-
 - Resonant Volume: 286.398 nm³
 - Geometric Energy Coefficient: 13/3 eV/nm²
-
 Application:
 - Fluorescence-Guided Surgery
 - Microscopy
